@@ -17,26 +17,46 @@ app.use(bodyParser.json())
 
 app.post('/api/register', async (req, res) => {
     console.log(req.body)
-    // const userSchema = new User(req.body);
-    // await userSchema.save((err, result) => {
-    //     if (err) {
-    //         return res.json({
-    //             status: 409,
-    //             message: 'Already Registered'
-    //         })
-    //     }
-    //     else {
-    //         return res.json({
-    //             status: 201,
-    //             message: 'User Registered'
-    //         })          }
-    //})
-    //Analyst
-    //Scripts reading databases
+    let {username, password} =req.body;
+    const plainTextPassword=password;
+    password = await bcrypt.hash(password,10)
+    if(!username || typeof username !== 'string') {
+        return res.json({ status: 'error', error: 'Invalid username'})
+    }
 
-    const { username,password } = req.body
+    if(!password || typeof plainTextPassword !== 'string') {
+        return res.json({ status: 'error', error: 'Invalid password'})
+    }
 
-    console.log(await bcrypt.hash(password,10))
+    if(plainTextPassword.length < 5) {
+        return res.json({ 
+            status: 'error', 
+            error: 'Password too small. should be atleast 6 characters'
+        })  
+    }
+     
+
+     try{
+        const response= await User.create({
+           username,
+           password 
+        })
+        console.log('User created successfully: ', response)
+        return res.json({ status: 'ok'})
+     } catch (error) {
+        if(error.code === 11000) {
+            //duplicate key
+        return res.json({ status: 'error', data:'',error: 'Username already in use'})
+     }
+    throw error
+
+     }
+
+     
+
+    //username, password
+
+    //console.log(await bcrypt.hash(password,10))
     // Cook -> Developer
     //Salt,Pepper,Oil,Vegetables-> Password
 
@@ -55,3 +75,21 @@ app.post('/api/register', async (req, res) => {
 app.listen(9999, () => {
     console.log('Server')
 })
+
+
+ // const userSchema = new User(req.body);
+    // await userSchema.save((err, result) => {
+    //     if (err) {
+    //         return res.json({
+    //             status: 409,
+    //             message: 'Already Registered'
+    //         })
+    //     }
+    //     else {
+    //         return res.json({
+    //             status: 201,
+    //             message: 'User Registered'
+    //         })          }
+    //})
+    //Analyst
+    //Scripts reading databases : video mai dalla hai? haan  ruko

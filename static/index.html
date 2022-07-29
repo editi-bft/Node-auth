@@ -35,9 +35,14 @@
             username,
             password
         })
-    }).then((res1) => res.json(console.log("res",res1)))
-
-    console.log(result)
+    })
+    // .then((res1) => console.log('User Registered'))
+    console.log('result-html',result)
+    if(result.status === 200){ 
+        //everything went fine
+        alert('Success')
+    }else
+    alert(result.error)
     }
 </script>
 </body>
