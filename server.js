@@ -18,6 +18,78 @@ const app = express();
 app.use("/", express.static(path.join(__dirname, "static")));
 app.use(bodyParser.json());
 
+app.post("/api/reset-password", async (req, res) => {
+  const { email,password : plainTextPassword } = req.body;
+ 
+  if (!plainTextPassword || typeof plainTextPassword !== "string") {
+    return res.json({ status: "error", error: "Invalid password" });
+  }
+
+  if (plainTextPassword.length < 6) {
+    return res.json({
+      status: "error",
+      error: "Password too small. Should be atleast 6 characters",
+    });
+  }
+
+  try {   
+
+    const password = await bcrypt.hash(plainTextPassword, 10);
+
+    await User.updateOne(
+      { email },
+      {
+        $set: { password },
+      }
+    );
+    res.json({ status: "ok" });
+  } catch (error) {
+    console.log(error);
+    res.json({ status: "error", error: ";))" });
+  }
+});
+
+app.post("/api/forgot-password", async (req, res) => {
+  const { email } = req.body;
+
+  let api_key = "dc256b3b0a68ebb0633326a296a022d8-835621cf-1da7da6d";
+  let domain = "sandbox0025fd92892849f0a7a16ca88c9791f8.mailgun.org";
+  let mailgun = require("mailgun-js");
+  const mg = mailgun({ apiKey: api_key, domain: domain });
+
+  if (!email || typeof email !== "string") {
+    return res.json({ status: "error", error: "Invalid email" });
+  }
+  const user = await User.findOne({ email }).lean();
+
+  if (!user) {
+    return res.json({ status: "error", error: "You are not registered, Please register first!!" });
+  }
+  
+  
+  try {
+    let data = {
+      from: 'Mailgun Sandbox <postmaster@sandbox0025fd92892849f0a7a16ca88c9791f8.mailgun.org>',
+      to: [email],
+      subject: 'Forgot-Password',
+      html: `<a href='http://localhost:9999/reset-password.html?email=${email}'>Click Here</a>`
+    };
+    mg.messages().send(data, function (error, body) {
+      if(error){
+        console.log(error)
+      }
+      console.log('mail sent',body)
+      // helper.apiResponse(res, 1, body);
+    });
+
+
+    res.json({ status: "ok" });
+  } catch (error) {
+    console.log(error);
+    res.json({ status: "error", error: ";))" });
+  }
+});
+
 app.post("/api/change-password", async (req, res) => {
   const { token, newpassword: plainTextPassword } = req.body;
 
@@ -53,11 +125,11 @@ app.post("/api/change-password", async (req, res) => {
 });
 
 app.post("/api/login", async (req, res) => {
-  const { username, password } = req.body;
-  const user = await User.findOne({ username }).lean();
+  const { email, password } = req.body;
+  const user = await User.findOne({ email }).lean();
 
   if (!user) {
-    return res.json({ status: "error", error: "Invalid username/password" });
+    return res.json({ status: "error", error: "email/password" });
   }
   console.log(user);
   if (await bcrypt.compare(password, user.password)) {
@@ -66,7 +138,7 @@ app.post("/api/login", async (req, res) => {
     const token = jwt.sign(
       {
         id: user._id,
-        username: user.username,
+        email: user.email,
       },
       JWT_SECRET
     );
@@ -74,11 +146,11 @@ app.post("/api/login", async (req, res) => {
     return res.json({ status: "ok", data: token });
   }
 
-  res.json({ status: "error", error: "Invalid username/password" });
+  res.json({ status: "error", error: "Invalid email/password" });
 });
 
 app.post("/api/register", async (req, res) => {
-  const { username, password: plainTextPassword } = req.body;
+  const { username, password: plainTextPassword,email,mobile } = req.body;
 
   if (!username || typeof username !== "string") {
     return res.json({ status: "error", error: "Invalid username" });
@@ -86,6 +158,14 @@ app.post("/api/register", async (req, res) => {
 
   if (!plainTextPassword || typeof plainTextPassword !== "string") {
     return res.json({ status: "error", error: "Invalid password" });
+  }
+
+  if (!email || typeof email !== "string") {
+    return res.json({ status: "error", error: "Invalid email" });
+  }
+
+  if (!mobile|| typeof mobile!== "string") {
+    return res.json({ status: "error", error: "Invalid mobile" });
   }
 
   if (plainTextPassword.length < 6) {
@@ -101,12 +181,14 @@ app.post("/api/register", async (req, res) => {
     const response = await User.create({
       username,
       password,
+      email,
+      mobile
     });
     console.log("User created successfully: ", response);
   } catch (error) {
     if (error.code === 11000) {
       // duplicate key
-      return res.json({ status: "error", error: "Username already in use" });
+      return res.json({ status: "error", error: "Email already in use" });
     }
     throw error;
   }
