@@ -5,16 +5,20 @@ const mongoose = require("mongoose");
 const User = require("./model/user");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const session = require('express-session');
+
+
 
 const JWT_SECRET =
   "sdjkfh8923yhjdksbfma@#*(&@*!^#&@bhjb2qiuhesdbhjdsfg839ujkdhfjk";
-
+  // mongodb+srv://editi:editi@cluster0.sestw.mongodb.net/login-app-db?retryWrites=true&w=majority
 mongoose.connect("mongodb://localhost:27017/login-app-db", {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 });
 
 const app = express();
+app.set('view engine', 'ejs');
 app.use("/", express.static(path.join(__dirname, "static")));
 app.use(bodyParser.json());
 
@@ -72,7 +76,7 @@ app.post("/api/forgot-password", async (req, res) => {
       from: 'Mailgun Sandbox <postmaster@sandbox0025fd92892849f0a7a16ca88c9791f8.mailgun.org>',
       to: [email],
       subject: 'Forgot-Password',
-      html: `<a href='http://localhost:9999/reset-password.html?email=${email}'>Click Here</a>`
+      html: `<a href='http://3.111.68.167:9999/reset-password.html?email=${email}'>Click Here</a>`
     };
     mg.messages().send(data, function (error, body) {
       if(error){
@@ -147,7 +151,97 @@ app.post("/api/login", async (req, res) => {
   }
 
   res.json({ status: "error", error: "Invalid email/password" });
+})
+  // index.js
+
+/*  EXPRESS */
+
+
+
+app.use(session({
+  resave: false,
+  saveUninitialized: true,
+  secret: 'SECRET' 
+}));
+
+app.get('/auth', function(req, res) {
+  res.render('pages/auth');
 });
+
+
+
+
+/*  PASSPORT SETUP  */
+
+const passport = require('passport');
+var userProfile;
+
+app.use(passport.initialize());
+app.use(passport.session());
+
+app.set('view engine', 'ejs');
+
+app.get('/success', (req, res) => res.send(userProfile));
+app.get('/error', (req, res) => res.send("error logging in"));
+
+passport.serializeUser(function(user, cb) {
+  cb(null, user);
+});
+
+passport.deserializeUser(function(obj, cb) {
+  cb(null, obj);
+});
+
+
+/*  Google AUTH  */
+ 
+const GoogleStrategy = require('passport-google-oauth').OAuth2Strategy;
+const GOOGLE_CLIENT_ID = "396873951104-qfsvvi5geh98p7v9tdods1nctn6rl94o.apps.googleusercontent.com";
+const GOOGLE_CLIENT_SECRET = "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";
+
+passport.use(new GoogleStrategy({
+    clientID: GOOGLE_CLIENT_ID,
+    clientSecret: GOOGLE_CLIENT_SECRET,
+    callbackURL: "http://localhost:9999/auth/google/callback"
+  },
+  async function(accessToken, refreshToken, profile, done) {
+      userProfile=profile;
+      console.log('userProfile',userProfile)
+      const username= userProfile.displayName;
+      const email= userProfile.emails[0].value;
+      const photo=userProfile.photos[0].value;
+      try {
+        const response = await User.create({
+          username,
+          photo,
+          email
+        });
+        console.log("User created successfully: ", response);
+      } catch (error) {
+        if (error.code === 11000) {
+          // duplicate key
+          return done("Email already in use" , null);
+          // return res.json({ status: "error", error: });
+        }
+        throw error;
+      }
+    
+      //res.json({ status: "ok" });
+  
+      return done(null,"User registaration successful");
+  }
+));
+ 
+app.get('/auth/google', 
+  passport.authenticate('google', { scope : ['profile', 'email'] }));
+ 
+app.get('/auth/google/callback', 
+  passport.authenticate('google', { failureRedirect: '/error' }),
+  function(req, res) {
+    // Successful authentication, redirect success.
+    res.redirect('/success');
+  });
+
 
 app.post("/api/register", async (req, res) => {
   const { username, password: plainTextPassword,email,mobile } = req.body;
